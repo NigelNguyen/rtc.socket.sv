@@ -2,24 +2,25 @@ const mongoose = require("mongoose");
 const Schema = mongoose.Schema;
 
 const roomSchema = new Schema({
-  password: { type: String, require: true },
+  password: { type: String, required: true },
 
-  hostName: { type: String, require: true },
+  hostName: { type: String },
   offer: {
-    sdp: { type: String, require: true },
-    type: { type: String, require: true },
+    sdp: { type: String },
+    type: { type: String },
   },
-  hostCandidate: { type: String, require: true },
+  hostCandidates: [{ type: String }],
 
-  userName: { type: String, require: true },
+  userName: { type: String },
   answer: {
-    sdp: { type: String, require: true },
-    type: { type: String, require: true },
+    sdp: { type: String },
+    type: { type: String },
   },
-  userCandidate: { type: String, require: true },
+  userCandidates: [{ type: String }],
 
-  socketId: { type: String, require: true },
-  state: { type: String, require: true },
+  socketId: { type: String },
+  state: { type: String },
+  iceState: { type: String },
 });
 
 module.exports = mongoose.model("Room", roomSchema);

@@ -41,6 +41,8 @@ app.post("/create-room", async (req, res) => {
   const hashedPassword = bcrypt.hashSync(password, Number(SALT));
   const room = await new Room({
     password: bcrypt.hashSync(password, hashedPassword),
+    hostCandidates: [],
+    userCandidates: [],
   });
 
   if (room) {
@@ -73,7 +75,7 @@ app.get("/room-info/:roomId", async (req, res) => {
     return res.status(404).send("Room not found");
   }
 
-  return res.send({ offer: room.offer, candidate: room.hostCandidate });
+  return res.send({ offer: room.offer, candidates: room.hostCandidates });
 });
 
 mongoose
@@ -87,8 +89,9 @@ mongoose
     io.on("connection", (socket) => {
       console.log("Client Connected!");
 
-      socket.on("disconnect", () => {
-        console.log("Client Disconnected!");
+      socket.on("disconnect", async () => {
+        const room = await Room.findOneAndDelete({ socketId: socket.id });
+        console.log("Client Disconnected! Deleted Room");
       });
 
       // MAKE CALL
@@ -104,15 +107,15 @@ mongoose
       });
 
       socket.on("host-candidate", async ({ candidate, roomId }) => {
-        const room = await Room.findOneAndUpdate(
+        const updatedRoom = await Room.findOneAndUpdate(
           { _id: roomId },
           {
-            hostCandidate: JSON.stringify(candidate),
-            state: "set-host-candidate",
+            $push: { hostCandidates: JSON.stringify(candidate) },
+            state: "set-host-candidates",
           }
         );
 
-        if (!room) {
+        if (!updatedRoom) {
           console.log("Error: Failed to update host candidate");
         }
         console.log("set host candidate");
@@ -128,22 +131,55 @@ mongoose
           console.log("Error: Failed to update answer");
         }
         console.log("set answer");
-        socket.to(room.socketId).emit("user-answer", answer);
+        if (room.iceState === "completed") {
+          console.log("user-candidate-complete-first");
+          socket
+            .to(room.socketId)
+            .emit("user-answer", { answer, candidates: room.userCandidates });
+        }
       });
 
       socket.on("user-candidate", async ({ candidate, roomId }) => {
-        const room = await Room.findOneAndUpdate(
+        const updatedRoom = await Room.findOneAndUpdate(
           { _id: roomId },
           {
-            userCandidate: JSON.stringify(candidate),
-            state: "set-user-candidate",
+            $push: { userCandidates: JSON.stringify(candidate) },
+            state: "set-user-candidates",
           }
         );
-        if (!room) {
+
+        if (!updatedRoom) {
           console.log("Error: Failed to update user candidate");
         }
-        socket.to(room.socketId).emit("user-candidate", candidate);
         console.log("set user candidate");
+      });
+
+      socket.on("user-candidate-complete", async (roomId) => {
+        const room = await Room.findOneAndUpdate(
+          { _id: roomId },
+          { iceState: "completed" }
+        );
+        if (!room) {
+          console.log("Error: Room not found");
+        }
+        
+        if (room.state === "answered") {
+          console.log("answered-first");
+          socket
+            .to(room.socketId)
+            .emit("user-answer", {
+              answer: room.answer,
+              candidates: room.userCandidates,
+            });
+        }
+      });
+
+      socket.on("resend-candidates", async (roomId) => {
+        const room = await Room.findById(roomId);
+        if (!room) {
+          console.log("Error: Room not found");
+        }
+        socket.emit("user-candidates", room.userCandidates);
       });
     });
   })
