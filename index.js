@@ -131,12 +131,27 @@ mongoose
           if (!room) {
             console.log("Error: Failed to update offer");
           }
-          socket
-            .to(room.socketId)
-            .emit("user-answer", { answer, candidates: room.userCandidates });
+          socket.to(room.socketId).emit("user-answer", {
+            answer,
+            candidates: room.userCandidates || [],
+          });
           console.log("answered");
         }
       );
+
+      // Resend answer and candidates to user
+      socket.on("resend-user-candidates", async ({ roomId }) => {
+        const room = await Room.findById(roomId);
+        if (!room) {
+          console.log("Error: Room not found");
+        }
+        console.log("catched", room.userCandidates.length);
+        console.log("resend to socket: ", room.socketId);
+        socket.to(room.socketId).emit("user-answer", {
+          answer: room.answer,
+          candidates: room.userCandidates,
+        });
+      });
     });
   })
   .catch((err) => {
