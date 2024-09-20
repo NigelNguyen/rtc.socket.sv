@@ -95,92 +95,48 @@ mongoose
       });
 
       // MAKE CALL
-      socket.on("offer", async ({ roomId, offer, host }) => {
-        const room = await Room.findOneAndUpdate(
-          { _id: roomId },
-          { hostName: host, socketId: socket.id, offer, state: "offer" }
-        );
-        if (!room) {
-          console.log("Error: Failed to update offer");
-        }
-        console.log("set offer");
-      });
-
-      socket.on("host-candidate", async ({ candidate, roomId }) => {
-        const updatedRoom = await Room.findOneAndUpdate(
-          { _id: roomId },
-          {
-            $push: { hostCandidates: JSON.stringify(candidate) },
-            state: "set-host-candidates",
+      socket.on(
+        "offer-call",
+        async ({ roomId, offer, candidates, userName }) => {
+          const room = await Room.findOneAndUpdate(
+            { _id: roomId },
+            {
+              hostName: userName,
+              socketId: socket.id,
+              offer,
+              hostCandidates: candidates,
+              state: "stored-offer",
+            }
+          );
+          if (!room) {
+            console.log("Error: Failed to update offer");
           }
-        );
-
-        if (!updatedRoom) {
-          console.log("Error: Failed to update host candidate");
+          console.log("set offer");
         }
-        console.log("set host candidate");
-      });
+      );
 
       // JOIN CALL
-      socket.on("answer", async ({ roomId, answer, userName }) => {
-        const room = await Room.findOneAndUpdate(
-          { _id: roomId },
-          { userName, answer, state: "answered" }
-        );
-        if (!room) {
-          console.log("Error: Failed to update answer");
-        }
-        console.log("set answer");
-        if (room.iceState === "completed") {
-          console.log("user-candidate-complete-first");
+      socket.on(
+        "answer-call",
+        async ({ roomId, answer, candidates, userName }) => {
+          const room = await Room.findOneAndUpdate(
+            { _id: roomId },
+            {
+              userName,
+              answer,
+              userCandidates: candidates,
+              state: "stored-answer",
+            }
+          );
+          if (!room) {
+            console.log("Error: Failed to update offer");
+          }
           socket
             .to(room.socketId)
             .emit("user-answer", { answer, candidates: room.userCandidates });
+          console.log("answered");
         }
-      });
-
-      socket.on("user-candidate", async ({ candidate, roomId }) => {
-        const updatedRoom = await Room.findOneAndUpdate(
-          { _id: roomId },
-          {
-            $push: { userCandidates: JSON.stringify(candidate) },
-            state: "set-user-candidates",
-          }
-        );
-
-        if (!updatedRoom) {
-          console.log("Error: Failed to update user candidate");
-        }
-        console.log("set user candidate");
-      });
-
-      socket.on("user-candidate-complete", async (roomId) => {
-        const room = await Room.findOneAndUpdate(
-          { _id: roomId },
-          { iceState: "completed" }
-        );
-        if (!room) {
-          console.log("Error: Room not found");
-        }
-        
-        if (room.state === "answered") {
-          console.log("answered-first");
-          socket
-            .to(room.socketId)
-            .emit("user-answer", {
-              answer: room.answer,
-              candidates: room.userCandidates,
-            });
-        }
-      });
-
-      socket.on("resend-candidates", async (roomId) => {
-        const room = await Room.findById(roomId);
-        if (!room) {
-          console.log("Error: Room not found");
-        }
-        socket.emit("user-candidates", room.userCandidates);
-      });
+      );
     });
   })
   .catch((err) => {
