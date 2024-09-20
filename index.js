@@ -131,9 +131,14 @@ mongoose
           if (!room) {
             console.log("Error: Failed to update offer");
           }
+          console.log("WHICH SERVER SEND: ", {
+            answer,
+            candidates,
+            length: candidates.length,
+          });
           socket.to(room.socketId).emit("user-answer", {
             answer,
-            candidates: room.userCandidates || [],
+            candidates,
           });
           console.log("answered");
         }
@@ -145,8 +150,11 @@ mongoose
         if (!room) {
           console.log("Error: Room not found");
         }
-        console.log("catched", room.userCandidates.length);
-        console.log("resend to socket: ", room.socketId);
+        console.log("WHICH SERVER SEND AGAIN: ", {
+          answer: room.answer,
+          candidates: room.userCandidates,
+          length: room.userCandidates.length,
+        });
         socket.to(room.socketId).emit("user-answer", {
           answer: room.answer,
           candidates: room.userCandidates,
